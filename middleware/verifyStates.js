@@ -1,17 +1,11 @@
 const statesData = require('../statesData.json');
-const validCodes = statesData.map(s => s.code);
+const validCodes = new Set(statesData.map(s => s.code));   // O(1) look‑ups
 
-const verifyStates = (req, res, next) => {
-  const stateParam = req.params.state;
-  if (!stateParam) {
-    return res.status(400).json({ message: 'State abbreviation required' });
-  }
-  const code = stateParam.toUpperCase();
-  if (!validCodes.includes(code)) {
+module.exports = (req, res, next) => {
+  const code = (req.params.state || '').toUpperCase();
+  if (!validCodes.has(code)) {
     return res.status(400).json({ message: 'Invalid state abbreviation parameter' });
   }
-  req.stateCode = code;
+  req.stateCode = code;      // attach once, use everywhere
   next();
 };
-
-module.exports = verifyStates;

@@ -1,23 +1,26 @@
-const express = require('express');
-const router = express.Router();
-const verifyStates = require('../middleware/verifyStates');
-const ctrl = require('../controllers/statesController');
+const router = require('express').Router();
+const v  = require('../middleware/verifyStates');
+const c  = require('../controllers/statesController');
 
+/* /states */
 router.route('/')
-  .get(ctrl.getAllStates);
+  .get(c.getAllStates);
+
+/* /states/:state – every sub‑route starts with verifyStates */
+router.param('state', v);   // applies v() automatically to every route with :state
 
 router.route('/:state')
-  .get(verifyStates, ctrl.getState);
+  .get(c.getState);
 
 router.route('/:state/funfact')
-  .get(verifyStates, ctrl.getRandomFunFact)
-  .post(verifyStates, ctrl.createFunFacts)
-  .patch(verifyStates, ctrl.updateFunFact)
-  .delete(verifyStates, ctrl.deleteFunFact);
+  .get(c.getRandomFunFact)
+  .post(c.createFunFacts)
+  .patch(c.updateFunFact)
+  .delete(c.deleteFunFact);
 
-router.get('/:state/capital', verifyStates, ctrl.getCapital);
-router.get('/:state/nickname', verifyStates, ctrl.getNickname);
-router.get('/:state/population', verifyStates, ctrl.getPopulation);
-router.get('/:state/admission', verifyStates, ctrl.getAdmission);
+router.get('/:state/capital',    c.getCapital);
+router.get('/:state/nickname',   c.getNickname);
+router.get('/:state/population', c.getPopulation);
+router.get('/:state/admission',  c.getAdmission);
 
 module.exports = router;

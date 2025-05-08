@@ -1,117 +1,116 @@
-const State = require('../models/State');
-const statesData = require('../statesData.json');
+const State       = require('../models/State');
+const statesJSON  = require('../statesData.json');
 
-const mergeFunFacts = async (statesArr) => {
-  const docs = await State.find();
-  return statesArr.map(st => {
-    const doc = docs.find(d => d.stateCode === st.code);
-    return doc ? { ...st, funfacts: doc.funfacts } : st;
+/* -------- helpers -------- */
+const base   = {};          // in‑memory cache of 50 states keyed by code
+statesJSON.forEach(s => (base[s.code] = { ...s }));   // deep copy once
+
+const ensureFunfactsKey = (obj) => {
+  if (!Object.prototype.hasOwnProperty.call(obj, 'funfacts')) obj.funfacts = undefined;
+};
+
+/* merge static JSON with Mongo fun facts */
+const merge = async (codes) => {
+  const docs = await State.find({ stateCode: { $in: codes } }).lean();
+  const map  = Object.fromEntries(docs.map(d => [d.stateCode, d.funfacts]));
+  return codes.map(c => {
+    const full = { ...base[c] };
+    if (map[c]) full.funfacts = map[c];
+    return full;
   });
 };
 
-const getStateData = (code) => statesData.find(s => s.code === code);
+/* -------- GET /states -------- */
+exports.getAllStates = async (req, res) => {
+  let codes = Object.keys(base);
 
-// GET /states
-const getAllStates = async (req, res) => {
-  let result = statesData;
-  const { contig } = req.query;
-  if (contig === 'true') {
-    result = result.filter(s => !['AK', 'HI'].includes(s.code));
-  } else if (contig === 'false') {
-    result = result.filter(s => ['AK', 'HI'].includes(s.code));
-  }
-  result = await mergeFunFacts(result);
-  res.json(result);
+  if (req.query.contig === 'true')  codes = codes.filter(c => !['AK','HI'].includes(c));
+  if (req.query.contig === 'false') codes = codes.filter(c =>  ['AK','HI'].includes(c));
+
+  const list = await merge(codes);
+  res.json(list);
 };
 
-// GET /states/:state
-const getState = async (req, res) => {
-  const stateData = getStateData(req.stateCode);
-  if (!stateData) return res.status(404).json({ message: 'State not found' });
-  const [merged] = await mergeFunFacts([stateData]);
-  res.json(merged);
+/* -------- GET /states/:state -------- */
+exports.getState = async (req, res) => {
+  const [obj] = await merge([req.stateCode]);
+  res.json(obj);
 };
 
-// GET /states/:state/funfact
-const getRandomFunFact = async (req, res) => {
+/* -------- GET /states/:state/funfact -------- */
+exports.getRandomFunFact = async (req, res) => {
   const doc = await State.findOne({ stateCode: req.stateCode });
-  const stateName = getStateData(req.stateCode).state;
   if (!doc || !doc.funfacts?.length) {
-    return res.json({ message: `No Fun Facts found for ${stateName}` });
+    return res.json({ message: `No Fun Facts found for ${base[req.stateCode].state}` });
   }
-  const randomIndex = Math.floor(Math.random() * doc.funfacts.length);
-  res.json({ funfact: doc.funfacts[randomIndex] });
+  const rand = Math.floor(Math.random() * doc.funfacts.length);
+  res.json({ funfact: doc.funfacts[rand] });
 };
 
-// POST /states/:state/funfact
-const createFunFacts = async (req, res) => {
+/* -------- POST /states/:state/funfact -------- */
+exports.createFunFacts = async (req, res) => {
   const { funfacts } = req.body;
-  if (!funfacts) return res.status(400).json({ message: 'State fun facts value required' });
-  if (!Array.isArray(funfacts)) return res.status(400).json({ message: 'State fun facts value must be an array' });
-
-  const existing = await State.findOne({ stateCode: req.stateCode });
-  if (existing) {
-    existing.funfacts = existing.funfacts ? existing.funfacts.concat(funfacts) : funfacts;
-    const result = await existing.save();
-    return res.json(result);
+  if (!Array.isArray(funfacts) || !funfacts.length) {
+    return res.status(400).json({ message: 'State fun facts value must be an array' });
   }
-  const created = await State.create({ stateCode: req.stateCode, funfacts });
-  res.json(created);
+
+  const doc = await State.findOneAndUpdate(
+    { stateCode: req.stateCode },
+    { $push: { funfacts: { $each: funfacts } } },
+    { new: true, upsert: true }
+  );
+  res.json(doc);
 };
 
-// PATCH /states/:state/funfact
-const updateFunFact = async (req, res) => {
-  const { index, funfact } = req.body;
-  if (!index) return res.status(400).json({ message: 'State fun fact index value required' });
-  if (!funfact) return res.status(400).json({ message: 'State fun fact value required' });
+/* -------- PATCH /states/:state/funfact -------- */
+exports.updateFunFact = async (req, res) => {
+  const idx      = req.body.index;
+  const funfact  = req.body.funfact;
+
+  if (!idx)      return res.status(400).json({ message: 'State fun fact index value required' });
+  if (!funfact)  return res.status(400).json({ message: 'State fun fact value required' });
 
   const doc = await State.findOne({ stateCode: req.stateCode });
-  const stateName = getStateData(req.stateCode).state;
   if (!doc || !doc.funfacts?.length) {
-    return res.status(404).json({ message: `No Fun Facts found for ${stateName}` });
+    return res.json({ message: `No Fun Facts found for ${base[req.stateCode].state}` });
   }
-  const i = index - 1;
+
+  const i = idx - 1;
   if (i < 0 || i >= doc.funfacts.length) {
-    return res.status(400).json({ message: `No Fun Fact found at that index for ${stateName}` });
+    return res.status(400).json({ message: `No Fun Fact found at that index for ${base[req.stateCode].state}` });
   }
   doc.funfacts[i] = funfact;
-  const result = await doc.save();
-  res.json(result);
+  await doc.save();
+  res.json(doc);
 };
 
-// DELETE /states/:state/funfact
-const deleteFunFact = async (req, res) => {
-  const { index } = req.body;
-  if (!index) return res.status(400).json({ message: 'State fun fact index value required' });
+/* -------- DELETE /states/:state/funfact -------- */
+exports.deleteFunFact = async (req, res) => {
+  const idx = req.body.index;
+  if (!idx) return res.status(400).json({ message: 'State fun fact index value required' });
 
   const doc = await State.findOne({ stateCode: req.stateCode });
-  const stateName = getStateData(req.stateCode).state;
   if (!doc || !doc.funfacts?.length) {
-    return res.status(404).json({ message: `No Fun Facts found for ${stateName}` });
+    return res.json({ message: `No Fun Facts found for ${base[req.stateCode].state}` });
   }
-  const i = index - 1;
+
+  const i = idx - 1;
   if (i < 0 || i >= doc.funfacts.length) {
-    return res.status(400).json({ message: `No Fun Fact found at that index for ${stateName}` });
+    return res.status(400).json({ message: `No Fun Fact found at that index for ${base[req.stateCode].state}` });
   }
+
   doc.funfacts.splice(i, 1);
-  const result = await doc.save();
-  res.json(result);
+  await doc.save();
+  res.json(doc);
 };
 
-const getSimpleField = (field, label) => async (req, res) => {
-  const st = getStateData(req.stateCode);
-  res.json({ state: st.state, [label]: st[field] });
+/* -------- simple‑field generators -------- */
+const simple = (field, label) => async (req, res) => {
+  const obj = base[req.stateCode];
+  res.json({ state: obj.state, [label]: obj[field] });
 };
 
-module.exports = {
-  getAllStates,
-  getState,
-  getRandomFunFact,
-  createFunFacts,
-  updateFunFact,
-  deleteFunFact,
-  getCapital: getSimpleField('capital_city', 'capital'),
-  getNickname: getSimpleField('nickname', 'nickname'),
-  getPopulation: getSimpleField('population', 'population'),
-  getAdmission: getSimpleField('admission_date', 'admitted')
-};
+exports.getCapital     = simple('capital_city', 'capital');
+exports.getNickname    = simple('nickname', 'nickname');
+exports.getPopulation  = simple('population', 'population');
+exports.getAdmission   = simple('admission_date', 'admitted');
