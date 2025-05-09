@@ -4,7 +4,7 @@ const path      = require('path');
 const cors      = require('cors');
 const mongoose  = require('mongoose');
 const connectDB = require('./config/dbConn');
-const seedDB    = require('./config/seedDB');     // ← NEW auto‑seeder
+const seedDB    = require('./config/seedDB');
 const statesAPI = require('./routes/states');
 
 const app  = express();
@@ -22,8 +22,10 @@ app.use('/states', statesAPI);
 
 /* ---------- catch‑all 404 ---------- */
 app.all('*', (req, res) => {
-  if (req.accepts('html'))  return res.status(404).sendFile(path.join(__dirname, 'views', '404.html'));
-  if (req.accepts('json'))  return res.status(404).json({ error: '404 Not Found' });
+  if (req.accepts('html'))
+    return res.status(404).sendFile(path.join(__dirname, 'views', '404.html'));
+  if (req.accepts('json'))
+    return res.status(404).json({ error: '404 Not Found' });
   res.type('txt').send('404 Not Found');
 });
 
@@ -36,7 +38,7 @@ app.listen(PORT, () => console.log(`🚀  API running on port ${PORT}`));
 
   mongoose.connection.once('open', async () => {
     console.log('🗄️  Connected to MongoDB');
-    await seedDB();                      // make sure KS, MO, OK, NE, CO have funfacts
+    await seedDB();                    // ensure 5 states have ≥3 fun facts
     console.log('🌱  Seed check complete');
   });
 })();

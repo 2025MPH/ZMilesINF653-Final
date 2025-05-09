@@ -2,12 +2,9 @@ const router = require('express').Router();
 const v  = require('../middleware/verifyStates');
 const c  = require('../controllers/statesController');
 
-/* /states */
-router.route('/')
-  .get(c.getAllStates);
+router.route('/').get(c.getAllStates);
 
-/* /states/:state – every sub‑route starts with verifyStates */
-router.param('state', v);   // applies v() automatically to every route with :state
+router.param('state', v);           // apply verifyStates to every route with :state
 
 router.route('/:state')
   .get(c.getState);
