@@ -3,14 +3,17 @@ const statesJSON = require('../statesData.json');
 
 /* ---------- cache static data ---------- */
 const byCode = {};
-statesJSON.forEach(s => (byCode[s.code] = { ...s }));
+statesJSON.forEach(s => {
+  /* start every state with funfacts: undefined so property always exists */
+  byCode[s.code] = { ...s, funfacts: undefined };
+});
 
 /* ---------- helper: merge JSON + funfacts ---------- */
 async function merge (codes) {
   const docs = await State.find({ stateCode: { $in: codes } }).lean();
   const map  = Object.fromEntries(docs.map(d => [d.stateCode, d.funfacts]));
   return codes.map(c => {
-    const obj = { ...byCode[c] };
+    const obj = { ...byCode[c] };          // already has funfacts: undefined
     if (map[c] && map[c].length) obj.funfacts = map[c];
     return obj;
   });
@@ -43,8 +46,10 @@ exports.getRandomFunFact = async (req, res) => {
 /* ---------- POST /states/:state/funfact ---------- */
 exports.createFunFacts = async (req, res) => {
   const { funfacts } = req.body;
-  if (!Array.isArray(funfacts))   return res.status(400).json({ message: 'State fun facts value must be an array' });
-  if (funfacts.length === 0)      return res.status(400).json({ message: 'State fun facts value required' });
+  if (!Array.isArray(funfacts))
+    return res.status(400).json({ message: 'State fun facts value must be an array' });
+  if (funfacts.length === 0)
+    return res.status(400).json({ message: 'State fun facts value required' });
 
   const doc = await State.findOneAndUpdate(
     { stateCode: req.stateCode },
@@ -100,11 +105,8 @@ const simple = (field, label) => async (req, res) => {
 
 exports.getCapital   = simple('capital_city', 'capital');
 exports.getNickname  = simple('nickname',     'nickname');
-
-/* population needs comma‑formatting */
 exports.getPopulation = async (req, res) => {
   const obj = byCode[req.stateCode];
   res.json({ state: obj.state, population: obj.population.toLocaleString('en-US') });
 };
-
 exports.getAdmission = simple('admission_date', 'admitted');

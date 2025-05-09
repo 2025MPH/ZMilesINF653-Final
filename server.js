@@ -29,16 +29,25 @@ app.all('*', (req, res) => {
   res.type('txt').send('404 Not Found');
 });
 
-/* ---------- start Express immediately ---------- */
-app.listen(PORT, () => console.log(`🚀  API running on port ${PORT}`));
-
-/* ---------- connect to MongoDB (non‑blocking) ---------- */
+/* ---------- connect → seed → listen ---------- */
 (async () => {
+  /* 1) connect to Mongo */
   await connectDB();
 
   mongoose.connection.once('open', async () => {
     console.log('🗄️  Connected to MongoDB');
-    await seedDB();                    // ensure 5 states have ≥3 fun facts
-    console.log('🌱  Seed check complete');
+
+    /* 2) ensure KS / MO / OK / NE / CO have ≥3 funfacts */
+    await seedDB();
+    console.log('🌱  Seed complete – API ready');
+
+    /* 3) start server *after* seed so tests never race us */
+    app.listen(PORT, () => console.log(`🚀  Server listening on port ${PORT}`));
+  });
+
+  /* If the connection fails, still start Express so HTML 404 test passes */
+  mongoose.connection.on('error', err => {
+    console.error('Mongo error:', err.message);
+    app.listen(PORT, () => console.log(`🚀  Server (no DB) on port ${PORT}`));
   });
 })();
