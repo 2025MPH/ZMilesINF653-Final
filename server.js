@@ -10,17 +10,17 @@ const statesAPI = require('./routes/states');
 const app  = express();
 const PORT = process.env.PORT || 3500;
 
-/* ---------- middleware ---------- */
+/* ------------ middleware ------------ */
 app.use(cors());
 app.use(express.json());
 
-/* ---------- static HTML ---------- */
+/* ------------ static HTML ------------ */
 app.use('/', express.static(path.join(__dirname, 'views')));
 
-/* ---------- REST routes ---------- */
+/* ------------ REST routes ------------ */
 app.use('/states', statesAPI);
 
-/* ---------- catch‑all 404 ---------- */
+/* ------------ 404 handler ------------ */
 app.all('*', (req, res) => {
   if (req.accepts('html'))
     return res.status(404).sendFile(path.join(__dirname, 'views', '404.html'));
@@ -29,25 +29,17 @@ app.all('*', (req, res) => {
   res.type('txt').send('404 Not Found');
 });
 
-/* ---------- connect → seed → listen ---------- */
+/* ------------ start Express IMMEDIATELY ------------ */
+app.listen(PORT, () => console.log(`🚀  Server listening on port ${PORT}`));
+
+/* ------------ connect to Mongo in the background ------------ */
 (async () => {
-  /* 1) connect to Mongo */
-  await connectDB();
-
-  mongoose.connection.once('open', async () => {
+  try {
+    await connectDB();
     console.log('🗄️  Connected to MongoDB');
-
-    /* 2) ensure KS / MO / OK / NE / CO have ≥3 funfacts */
     await seedDB();
-    console.log('🌱  Seed complete – API ready');
-
-    /* 3) start server *after* seed so tests never race us */
-    app.listen(PORT, () => console.log(`🚀  Server listening on port ${PORT}`));
-  });
-
-  /* If the connection fails, still start Express so HTML 404 test passes */
-  mongoose.connection.on('error', err => {
-    console.error('Mongo error:', err.message);
-    app.listen(PORT, () => console.log(`🚀  Server (no DB) on port ${PORT}`));
-  });
+    console.log('🌱  Seed complete');
+  } catch (err) {
+    console.error('Mongo connection error:', err.message);
+  }
 })();
