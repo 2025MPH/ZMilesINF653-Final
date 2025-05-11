@@ -1,13 +1,13 @@
 const State      = require('../models/State');
 const statesJSON = require('../statesData.json');
 
-/* ---------- cache static data ---------- */
+// ─── cache static JSON + ensure every object has a funfacts key ─────────────
 const byCode = {};
 statesJSON.forEach(s => {
   byCode[s.code] = { ...s, funfacts: undefined };
 });
 
-/* ---------- merge helper ---------- */
+// ─── helper: merge static JSON with Mongo funfacts ─────────────────────────────
 async function merge(codes) {
   const docs = await State.find({ stateCode: { $in: codes } }).lean();
   const map  = Object.fromEntries(docs.map(d => [d.stateCode, d.funfacts]));
@@ -18,7 +18,7 @@ async function merge(codes) {
   });
 }
 
-/* ---------- GET /states ---------- */
+// ─── GET /states ───────────────────────────────────────────────────────────────
 exports.getAllStates = async (req, res) => {
   let codes = Object.keys(byCode);
   if (req.query.contig === 'true')  codes = codes.filter(c => !['AK','HI'].includes(c));
@@ -26,13 +26,13 @@ exports.getAllStates = async (req, res) => {
   res.json(await merge(codes));
 };
 
-/* ---------- GET /states/:state ---------- */
+// ─── GET /states/:state ───────────────────────────────────────────────────────
 exports.getState = async (req, res) => {
   const [obj] = await merge([req.stateCode]);
   res.json(obj);
 };
 
-/* ---------- GET /states/:state/funfact ---------- */
+// ─── GET /states/:state/funfact ───────────────────────────────────────────────
 exports.getRandomFunFact = async (req, res) => {
   const doc = await State.findOne({ stateCode: req.stateCode });
   if (!doc || !doc.funfacts || doc.funfacts.length === 0) {
@@ -42,11 +42,11 @@ exports.getRandomFunFact = async (req, res) => {
   res.json({ funfact: doc.funfacts[rand] });
 };
 
-/* ---------- POST /states/:state/funfact ---------- */
+// ─── POST /states/:state/funfact ──────────────────────────────────────────────
 exports.createFunFacts = async (req, res) => {
   const { funfacts } = req.body;
 
-  // 1) missing property
+  // 1) missing property entirely
   if (funfacts === undefined) {
     return res.status(400).json({ message: 'State fun facts value required' });
   }
@@ -59,7 +59,7 @@ exports.createFunFacts = async (req, res) => {
     return res.status(400).json({ message: 'State fun facts value required' });
   }
 
-  // 4) append (never overwrite)
+  // 4) append them (never overwrite existing)
   const doc = await State.findOneAndUpdate(
     { stateCode: req.stateCode },
     { $push: { funfacts: { $each: funfacts } } },
@@ -68,7 +68,7 @@ exports.createFunFacts = async (req, res) => {
   res.json(doc);
 };
 
-/* ---------- PATCH /states/:state/funfact ---------- */
+// ─── PATCH /states/:state/funfact ─────────────────────────────────────────────
 exports.updateFunFact = async (req, res) => {
   const idx     = req.body.index;
   const funfact = req.body.funfact;
@@ -90,7 +90,7 @@ exports.updateFunFact = async (req, res) => {
   res.json(doc);
 };
 
-/* ---------- DELETE /states/:state/funfact ---------- */
+// ─── DELETE /states/:state/funfact ────────────────────────────────────────────
 exports.deleteFunFact = async (req, res) => {
   const idx = req.body.index;
   if (!idx) return res.status(400).json({ message: 'State fun fact index value required' });
@@ -110,16 +110,16 @@ exports.deleteFunFact = async (req, res) => {
   res.json(doc);
 };
 
-/* ---------- simple-field helpers ---------- */
+// ─── simple-field helpers ────────────────────────────────────────────────────
 const simple = (field, label) => async (req, res) => {
   const obj = byCode[req.stateCode];
   res.json({ state: obj.state, [label]: obj[field] });
 };
 
-exports.getCapital   = simple('capital_city', 'capital');
-exports.getNickname  = simple('nickname',     'nickname');
+exports.getCapital    = simple('capital_city', 'capital');
+exports.getNickname   = simple('nickname',     'nickname');
 exports.getPopulation = async (req, res) => {
   const obj = byCode[req.stateCode];
   res.json({ state: obj.state, population: obj.population.toLocaleString('en-US') });
 };
-exports.getAdmission = simple('admission_date', 'admitted');
+exports.getAdmission  = simple('admission_date', 'admitted');

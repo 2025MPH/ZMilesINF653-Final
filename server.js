@@ -10,36 +10,41 @@ const statesAPI = require('./routes/states');
 const app  = express();
 const PORT = process.env.PORT || 3500;
 
-/* ------------ middleware ------------ */
+// ─── middleware ───────────────────────────────────────────────────────────────
 app.use(cors());
 app.use(express.json());
 
-/* ------------ static HTML ------------ */
-app.use('/', express.static(path.join(__dirname, 'views')));
+// ─── root endpoint ────────────────────────────────────────────────────────────
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'index.html'));
+});
 
-/* ------------ REST routes ------------ */
+// ─── API routes ───────────────────────────────────────────────────────────────
 app.use('/states', statesAPI);
 
-/* ------------ 404 handler ------------ */
-app.all('*', (req, res) => {
-  if (req.accepts('html'))
+// ─── catch-all 404 ────────────────────────────────────────────────────────────
+app.use((req, res) => {
+  if (req.accepts('html')) {
     return res.status(404).sendFile(path.join(__dirname, 'views', '404.html'));
-  if (req.accepts('json'))
+  }
+  if (req.accepts('json')) {
     return res.status(404).json({ error: '404 Not Found' });
+  }
   res.type('txt').send('404 Not Found');
 });
 
-/* ------------ start Express IMMEDIATELY ------------ */
-app.listen(PORT, () => console.log(`🚀  Server listening on port ${PORT}`));
+// ─── start server IMMEDIATELY ─────────────────────────────────────────────────
+app.listen(PORT, () => {
+  console.log(`🚀 Server listening on port ${PORT}`);
 
-/* ------------ connect to Mongo in the background ------------ */
-(async () => {
-  try {
-    await connectDB();
-    console.log('🗄️  Connected to MongoDB');
-    await seedDB();
-    console.log('🌱  Seed complete');
-  } catch (err) {
-    console.error('Mongo connection error:', err.message);
-  }
-})();
+  // then connect to MongoDB and seed (non-blocking as far as clients are concerned)
+  connectDB()
+    .then(async () => {
+      console.log('🗄️ Connected to MongoDB');
+      await seedDB();
+      console.log('🌱 Seeding complete');
+    })
+    .catch(err => {
+      console.error('Mongo connection error:', err.message);
+    });
+});
