@@ -1,13 +1,13 @@
 const State      = require('../models/State');
 const statesJSON = require('../statesData.json');
 
-// cache static JSON + ensure every object has a funfacts key
+// Cache static JSON + ensure every obj has funfacts key
 const byCode = {};
 statesJSON.forEach(s => {
   byCode[s.code] = { ...s, funfacts: undefined };
 });
 
-// helper: merge static JSON with Mongo funfacts
+// Helper: merge JSON + Mongo funfacts
 async function merge(codes) {
   const docs = await State.find({ stateCode: { $in: codes } }).lean();
   const map  = Object.fromEntries(docs.map(d => [d.stateCode, d.funfacts]));
@@ -98,8 +98,7 @@ exports.deleteFunFact = async (req, res) => {
 
   const i = idx - 1;
   if (i < 0 || i >= doc.funfacts.length) {
-    // **Adjusted message here: drops "that" to exactly match the test**
-    return res.status(400).json({ message: `No Fun Fact found at index for ${byCode[req.stateCode].state}` });
+    return res.status(400).json({ message: `No Fun Fact found at that index for ${byCode[req.stateCode].state}` });
   }
 
   doc.funfacts.splice(i, 1);
@@ -107,7 +106,7 @@ exports.deleteFunFact = async (req, res) => {
   res.json(doc);
 };
 
-// simple-field helpers
+// Simple‐field helpers
 const simple = (field, label) => async (req, res) => {
   const obj = byCode[req.stateCode];
   res.json({ state: obj.state, [label]: obj[field] });
