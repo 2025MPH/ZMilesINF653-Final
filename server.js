@@ -35,14 +35,14 @@ app.use((req, res) => {
 
 // ─── start server IMMEDIATELY ─────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`🚀 Server listening on port ${PORT}`);
+  console.log(`Server listening on port ${PORT}`);
 
   // then connect to MongoDB and seed (non-blocking as far as clients are concerned)
   connectDB()
     .then(async () => {
-      console.log('🗄️ Connected to MongoDB');
+      console.log('Connected to MongoDB');
       await seedDB();
-      console.log('🌱 Seeding complete');
+      console.log('Seeding complete');
     })
     .catch(err => {
       console.error('Mongo connection error:', err.message);
